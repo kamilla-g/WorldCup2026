@@ -453,10 +453,38 @@
     let isAdmin = false;
     const ADMIN_PASSWORD = "Cami2026";
 
+    function getInitials(fullName) {
+      const s = (fullName || '').trim().replace(/\s+/g, ' ');
+      if (!s) return '';
+      const parts = s.split(' ').filter(Boolean);
+      const first = parts[0]?.[0] || '';
+      const second = parts[1]?.[0] || '';
+      return (first + second).toUpperCase();
+    }
+
+    function setHeaderUserName(uid, fallbackDisplayName) {
+      const el = document.getElementById('userName');
+      if (!el) return;
+
+      // Сначала показываем то, что есть (быстро), потом уточняем из базы
+      const initialName = (fallbackDisplayName || '').trim();
+      el.textContent = getInitials(initialName) || initialName || 'Участник';
+
+      db.ref('users/' + uid + '/name').once('value')
+        .then(snap => {
+          const nameFromDb = (snap.val() || '').trim();
+          if (nameFromDb) el.textContent = getInitials(nameFromDb) || nameFromDb;
+        })
+        .catch(() => {
+          // молча оставляем fallback
+        });
+    }
+
     auth.onAuthStateChanged(user => {
       if (user) {
         currentUser = user;
-        document.getElementById('userName').textContent = user.displayName || user.email;
+        // В шапке показываем ФИ (из базы users/{uid}.name), а не почту
+        setHeaderUserName(user.uid, user.displayName);
         checkAdminStatus();
         loadLeaderboard();
         loadMatches();
@@ -500,7 +528,7 @@
 
           <div id="registerNameBlock" style="margin-bottom: 16px; display:none;">
             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя (для таблицы)</label>
-            <input type="text" id="nameInput" placeholder="Например: Камилла" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
+            <input type="text" id="nameInput" placeholder="Например: Камилла Григорян" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
           </div>
 
           <div style="margin-bottom: 16px;">
