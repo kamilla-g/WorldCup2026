@@ -468,57 +468,136 @@
     });
 
     function showLoginForm() {
-      document.body.innerHTML = `
-        <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-          <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 400px; width: 100%;">
-            <h1 style="text-align: center; color: #667eea; margin-bottom: 30px;">⚽ ЧМ-2026</h1>
-            <div style="margin-bottom: 20px;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 600;">Ваше имя</label>
-              <input type="text" id="nameInput" placeholder="Введите ваше имя" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
-            </div>
-            <div style="margin-bottom: 20px;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 600;">Email (опционально)</label>
-              <input type="email" id="emailInput" placeholder="your@email.com" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
-            </div>
-            <div style="margin-bottom: 20px;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 600;">Пароль (опционально)</label>
-              <input type="password" id="passwordInput" placeholder="••••••" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
-            </div>
-            <button onclick="registerUser()" style="width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px;">Вход</button>
-            <div id="authMessage" style="margin-top: 16px; text-align: center; color: #ef4444;"></div>
+      // Не затираем document.body.innerHTML, иначе после авторизации пропадает весь интерфейс приложения.
+      // Вместо этого показываем оверлей поверх приложения.
+      let overlay = document.getElementById('authOverlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'authOverlay';
+        overlay.style.cssText = [
+          'position:fixed',
+          'inset:0',
+          'display:flex',
+          'justify-content:center',
+          'align-items:center',
+          'min-height:100vh',
+          'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          'z-index:9999',
+          'padding:16px'
+        ].join(';');
+        document.body.appendChild(overlay);
+      }
+
+      // Два режима: вход и регистрация. Имя нужно ТОЛЬКО при регистрации.
+      overlay.innerHTML = `
+        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 420px; width: 100%;">
+          <h1 style="text-align: center; color: #667eea; margin-bottom: 18px;">⚽ ЧМ-2026</h1>
+
+          <div style="display:flex; gap:10px; margin-bottom: 18px;">
+            <button id="authTabLogin" onclick="setAuthMode('login')" style="flex:1; padding:10px; border-radius:8px; border:1px solid #d1d5db; background:#f9fafb; font-weight:600; cursor:pointer;">Вход</button>
+            <button id="authTabRegister" onclick="setAuthMode('register')" style="flex:1; padding:10px; border-radius:8px; border:1px solid #d1d5db; background:#f9fafb; font-weight:600; cursor:pointer;">Регистрация</button>
+          </div>
+
+          <div id="registerNameBlock" style="margin-bottom: 16px; display:none;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя (для таблицы)</label>
+            <input type="text" id="nameInput" placeholder="Например: Камилла" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Email</label>
+            <input type="email" id="emailInput" placeholder="your@email.com" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
+          </div>
+
+          <div style="margin-bottom: 18px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Пароль</label>
+            <input type="password" id="passwordInput" placeholder="••••••" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
+          </div>
+
+          <button id="authPrimaryBtn" onclick="doLogin()" style="width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px;">Войти</button>
+          <div id="authMessage" style="margin-top: 14px; text-align: center; color: #ef4444;"></div>
+
+          <div style="margin-top: 12px; text-align: center; color: #6b7280; font-size: 12px; line-height: 1.35;">
+            Имя спрашиваем только при регистрации — оно пойдёт в рейтинг. Для повторного входа используйте email и пароль.
           </div>
         </div>
       `;
+
+      // По умолчанию — вход
+      setAuthMode('login');
     }
 
-    function registerUser() {
-      const name = document.getElementById('nameInput').value.trim();
-      const email = document.getElementById('emailInput').value.trim() || `${name.replace(/\s+/g, '').toLowerCase()}@cup2026.local`;
-      const password = document.getElementById('passwordInput').value.trim() || "pass12345";
+    let authMode = 'login';
 
-      if (!name) {
-        document.getElementById('authMessage').textContent = 'Введите ваше имя';
+    function setAuthMode(mode) {
+      authMode = mode;
+
+      const loginTab = document.getElementById('authTabLogin');
+      const regTab = document.getElementById('authTabRegister');
+      const nameBlock = document.getElementById('registerNameBlock');
+      const primaryBtn = document.getElementById('authPrimaryBtn');
+      const msgEl = document.getElementById('authMessage');
+
+      if (msgEl) msgEl.textContent = '';
+
+      const activeStyle = 'background:#667eea; color:white; border-color:#667eea;';
+      const inactiveStyle = 'background:#f9fafb; color:#111827; border-color:#d1d5db;';
+
+      if (mode === 'register') {
+        if (nameBlock) nameBlock.style.display = 'block';
+        if (primaryBtn) { primaryBtn.textContent = 'Зарегистрироваться'; primaryBtn.setAttribute('onclick', 'doRegister()'); }
+        if (loginTab) loginTab.style.cssText += inactiveStyle;
+        if (regTab) regTab.style.cssText += activeStyle;
+      } else {
+        if (nameBlock) nameBlock.style.display = 'none';
+        if (primaryBtn) { primaryBtn.textContent = 'Войти'; primaryBtn.setAttribute('onclick', 'doLogin()'); }
+        if (loginTab) loginTab.style.cssText += activeStyle;
+        if (regTab) regTab.style.cssText += inactiveStyle;
+      }
+    }
+
+    function closeAuthOverlay() {
+      const overlay = document.getElementById('authOverlay');
+      if (overlay) overlay.remove();
+    }
+
+    function doLogin() {
+      const email = (document.getElementById('emailInput').value || '').trim();
+      const password = (document.getElementById('passwordInput').value || '').trim();
+      const msgEl = document.getElementById('authMessage');
+
+      if (!email || !password) {
+        msgEl.textContent = 'Введите email и пароль для входа';
         return;
       }
 
+      msgEl.textContent = 'Входим...';
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => closeAuthOverlay())
+        .catch(err => { msgEl.textContent = err.message; });
+    }
+
+    function doRegister() {
+      const name = (document.getElementById('nameInput').value || '').trim();
+      const email = (document.getElementById('emailInput').value || '').trim();
+      const password = (document.getElementById('passwordInput').value || '').trim();
+      const msgEl = document.getElementById('authMessage');
+
+      if (!name) { msgEl.textContent = 'Введите имя для рейтинга'; return; }
+      if (!email || !password) { msgEl.textContent = 'Введите email и пароль для регистрации'; return; }
+
+      msgEl.textContent = 'Создаём аккаунт...';
       auth.createUserWithEmailAndPassword(email, password)
-        .then(userCredential => {
-          return userCredential.user.updateProfile({ displayName: name })
-            .then(() => {
-              db.ref('users/' + userCredential.user.uid).set({
-                name: name,
-                email: email,
-                score: 0,
-                predictions: {}
-              });
-            });
+        .then(cred => {
+          return cred.user.updateProfile({ displayName: name })
+            .then(() => db.ref('users/' + cred.user.uid).set({
+              name: name,
+              email: email,
+              score: 0,
+              predictions: {}
+            }))
+            .then(() => closeAuthOverlay());
         })
-        .catch(error => {
-          auth.signInWithEmailAndPassword(email, password)
-            .catch(() => {
-              document.getElementById('authMessage').textContent = error.message;
-            });
-        });
+        .catch(err => { msgEl.textContent = err.message; });
     }
 
     function checkAdminStatus() {
