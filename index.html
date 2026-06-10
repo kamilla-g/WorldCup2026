@@ -315,6 +315,31 @@
     <div id="profile" class="section">
       <div class="profile-card">
         <h2 style="margin-bottom: 20px; color: #333;">Мой профиль</h2>
+
+        <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 14px; border-radius: 8px; margin-bottom: 18px;">
+          <div style="font-weight: 700; margin-bottom: 8px; color: #92400e;">🏆 Прогноз победителя турнира (до 18 июня)</div>
+          <div style="font-size: 13px; color: #92400e; margin-bottom: 10px; line-height: 1.35;">
+            Выберите одну команду — победителя ЧМ-2026. Если после финала эта команда окажется чемпионом, вы получите <b>+10 очков</b>.
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+            <select id="championPick" style="flex:1; min-width: 180px; padding: 10px; border: 1px solid #fcd34d; border-radius: 6px;">
+              <option value="">Выберите команду...</option>
+              <option value="Аргентина">Аргентина</option>
+              <option value="Бразилия">Бразилия</option>
+              <option value="Франция">Франция</option>
+              <option value="Англия">Англия</option>
+              <option value="Испания">Испания</option>
+              <option value="Германия">Германия</option>
+              <option value="Португалия">Португалия</option>
+              <option value="Италия">Италия</option>
+              <option value="Нидерланды">Нидерланды</option>
+              <option value="Бельгия">Бельгия</option>
+              <option value="США">США</option>
+            </select>
+            <button class="btn" id="championSaveBtn" onclick="saveChampionPick()">Сохранить</button>
+          </div>
+          <div id="championPickMsg" style="margin-top: 8px; font-size: 13px; font-weight: 600;"></div>
+        </div>
         <div class="stat-row">
           <span class="stat-label">Имя:</span>
           <span class="stat-value" id="profileName">-</span>
@@ -396,9 +421,15 @@
               <option value="Группа F">Группа F</option>
               <option value="Группа G">Группа G</option>
               <option value="Группа H">Группа H</option>
+              <option value="Группа I">Группа I</option>
+              <option value="Группа J">Группа J</option>
+              <option value="Группа K">Группа K</option>
+              <option value="Группа L">Группа L</option>
+              <option value="1/16">1/16 финала</option>
               <option value="1/8">1/8 финала</option>
               <option value="1/4">1/4 финала</option>
               <option value="1/2">1/2 финала</option>
+              <option value="Матч за 3 место">Матч за 3 место</option>
               <option value="Финал">Финал</option>
             </select>
           </div>
@@ -424,6 +455,29 @@
           </div>
           <button class="btn" onclick="setResult()">Сохранить результат</button>
           <div id="resultMessage"></div>
+        </div>
+
+        <div style="margin-top: 32px;">
+          <h3 style="margin-bottom: 16px;">🏆 Победитель турнира (+10 за угаданного)</h3>
+          <div class="form-group">
+            <label>Укажите победителя ЧМ-2026 (после финала)</label>
+            <select id="actualChampion">
+              <option value="">Выберите команду...</option>
+              <option value="Аргентина">Аргентина</option>
+              <option value="Бразилия">Бразилия</option>
+              <option value="Франция">Франция</option>
+              <option value="Англия">Англия</option>
+              <option value="Испания">Испания</option>
+              <option value="Германия">Германия</option>
+              <option value="Португалия">Португалия</option>
+              <option value="Италия">Италия</option>
+              <option value="Нидерланды">Нидерланды</option>
+              <option value="Бельгия">Бельгия</option>
+              <option value="США">США</option>
+            </select>
+          </div>
+          <button class="btn" onclick="awardChampionBonus()">Выдать +10 угадавшим</button>
+          <div id="championAwardMsg"></div>
         </div>
       </div>
     </div>
@@ -453,6 +507,14 @@
     let isAdmin = false;
     const ADMIN_PASSWORD = "Cami2026";
 
+    // Прогноз победителя турнира: до 18 июня 2026 (локальное время браузера)
+    const CHAMPION_PICK_DEADLINE = new Date('2026-06-18T23:59:59');
+
+    function isChampionPickOpen() {
+      return new Date() <= CHAMPION_PICK_DEADLINE;
+    }
+
+    // (Функция getInitials больше не используется в шапке, но оставляем без вреда)
     function getInitials(fullName) {
       const s = (fullName || '').trim().replace(/\s+/g, ' ');
       if (!s) return '';
@@ -466,14 +528,14 @@
       const el = document.getElementById('userName');
       if (!el) return;
 
-      // Сначала показываем то, что есть (быстро), потом уточняем из базы
-      const initialName = (fallbackDisplayName || '').trim();
-      el.textContent = getInitials(initialName) || initialName || 'Участник';
+      // В шапке показываем Имя и Фамилия (не почту)
+      const fallback = (fallbackDisplayName || '').trim();
+      el.textContent = fallback || 'Участник';
 
       db.ref('users/' + uid + '/name').once('value')
         .then(snap => {
           const nameFromDb = (snap.val() || '').trim();
-          if (nameFromDb) el.textContent = getInitials(nameFromDb) || nameFromDb;
+          if (nameFromDb) el.textContent = nameFromDb;
         })
         .catch(() => {
           // молча оставляем fallback
@@ -527,7 +589,7 @@
           </div>
 
           <div id="registerNameBlock" style="margin-bottom: 16px; display:none;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя (для таблицы)</label>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя</label>
             <input type="text" id="nameInput" placeholder="Например: Камилла Григорян" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
           </div>
 
@@ -692,9 +754,17 @@
     function loadMatches() {
       db.ref('matches').on('value', snapshot => {
         const matches = snapshot.val() || {};
-        const matchList = Object.entries(matches).map(([id, match]) => ({ id, ...match }));
 
-        const html = matchList.map(match => {
+        // Подтягиваем мои прогнозы, чтобы корректно показывать мои значения в карточке матча
+        db.ref('users/' + currentUser.uid + '/predictions').once('value').then(predSnap => {
+          const myPreds = predSnap.val() || {};
+          const matchList = Object.entries(matches).map(([id, match]) => ({
+            id,
+            ...match,
+            myPrediction: myPreds[id] || null
+          }));
+
+          const html = matchList.map(match => {  
           const now = new Date();
           const matchTime = new Date(match.dateTime);
           const isPast = now > matchTime;
@@ -722,6 +792,23 @@
             `;
           }
 
+          const publicPreds = match.predictions ? Object.values(match.predictions) : [];
+          const publicPredsHtml = publicPreds.length ? `
+            <div style="margin-top: 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px;">
+              <div style="font-weight: 700; color: #374151; margin-bottom: 8px;">Прогнозы участников</div>
+              <div style="display: grid; gap: 6px;">
+                ${publicPreds
+                  .sort((a,b) => (a.name || '').localeCompare(b.name || ''))
+                  .map(p => `
+                    <div style="display:flex; justify-content: space-between; gap: 10px; font-size: 13px;">
+                      <span style="color:#111827; font-weight:600;">${p.name || 'Участник'}</span>
+                      <span style="color:#667eea; font-weight:700;">${p.score1} : ${p.score2}</span>
+                    </div>
+                  `).join('')}
+              </div>
+            </div>
+          ` : '';
+
           return `
             <div class="match-card">
               <div class="match-header">
@@ -739,11 +826,16 @@
                   <div style="font-weight: 600; margin-top: 8px;">Очки: ${match.myPrediction.points || 0}</div>
                 </div>
               ` : ''}
+              ${publicPredsHtml}
             </div>
           `;
         }).join('');
 
         document.getElementById('matchesGrid').innerHTML = html || '<div class="loading">Нет матчей</div>';
+          }).catch(err => {
+            console.error(err);
+            document.getElementById('matchesGrid').innerHTML = '<div class="error">Ошибка загрузки прогнозов</div>';
+          });
       });
     }
 
@@ -751,15 +843,36 @@
       const score1 = parseInt(document.getElementById(`pred1_${matchId}`).value) || 0;
       const score2 = parseInt(document.getElementById(`pred2_${matchId}`).value) || 0;
 
-      db.ref('users/' + currentUser.uid + '/predictions/' + matchId).set({
+      // 1) личная запись
+      const personalPred = {
         score1: score1,
         score2: score2,
         team1: team1,
         team2: team2,
         timestamp: new Date().toISOString()
-      });
+      };
 
-      alert('Прогноз сохранен!');
+      // 2) публичная запись по матчу (чтобы другие участники могли смотреть прогнозы друг друга)
+      // имя берём из users/{uid}/name
+      db.ref('users/' + currentUser.uid + '/name').once('value').then(snap => {
+        const name = (snap.val() || currentUser.displayName || 'Участник').toString();
+        const publicPred = {
+          uid: currentUser.uid,
+          name: name,
+          score1: score1,
+          score2: score2,
+          timestamp: personalPred.timestamp
+        };
+
+        return Promise.all([
+          db.ref('users/' + currentUser.uid + '/predictions/' + matchId).set(personalPred),
+          db.ref('matches/' + matchId + '/predictions/' + currentUser.uid).set(publicPred)
+        ]);
+      }).then(() => {
+        alert('Прогноз сохранен!');
+      }).catch(err => {
+        alert('Ошибка сохранения: ' + err.message);
+      });
     }
 
     function loadProfile() {
@@ -780,8 +893,60 @@
           document.getElementById('profilePercent').textContent = percent + '%';
           document.getElementById('profileExact').textContent = exact;
           document.getElementById('profileOutcome').textContent = guessed - exact;
+
+          // --- Прогноз победителя турнира ---
+          const pickEl = document.getElementById('championPick');
+          const saveBtn = document.getElementById('championSaveBtn');
+          const msgEl = document.getElementById('championPickMsg');
+
+          if (pickEl) {
+            if (userData.championPick) pickEl.value = userData.championPick;
+
+            if (!isChampionPickOpen()) {
+              pickEl.disabled = true;
+              if (saveBtn) saveBtn.disabled = true;
+              if (msgEl) {
+                msgEl.style.color = '#92400e';
+                msgEl.textContent = userData.championPick
+                  ? `Ваш выбор: ${userData.championPick}. Окно выбора закрыто.`
+                  : 'Окно выбора закрыто.';
+              }
+            } else {
+              pickEl.disabled = false;
+              if (saveBtn) saveBtn.disabled = false;
+              if (msgEl) {
+                msgEl.style.color = '#92400e';
+                msgEl.textContent = userData.championPick ? `Текущий выбор: ${userData.championPick}` : '';
+              }
+            }
+          }
         }
       });
+    }
+
+    function saveChampionPick() {
+      if (!currentUser) return;
+      if (!isChampionPickOpen()) {
+        alert('Выбор победителя закрыт (после 18 июня нельзя менять).');
+        return;
+      }
+
+      const pickEl = document.getElementById('championPick');
+      const msgEl = document.getElementById('championPickMsg');
+      const team = (pickEl?.value || '').trim();
+      if (!team) {
+        if (msgEl) { msgEl.style.color = '#b91c1c'; msgEl.textContent = 'Выберите команду.'; }
+        return;
+      }
+
+      db.ref('users/' + currentUser.uid).update({ championPick: team })
+        .then(() => {
+          if (msgEl) { msgEl.style.color = '#166534'; msgEl.textContent = '✅ Сохранено!'; }
+          setTimeout(() => { if (msgEl) { msgEl.style.color = '#92400e'; msgEl.textContent = `Текущий выбор: ${team}`; } }, 1500);
+        })
+        .catch(err => {
+          if (msgEl) { msgEl.style.color = '#b91c1c'; msgEl.textContent = err.message; }
+        });
     }
 
     function loadPredictions() {
@@ -917,9 +1082,54 @@
               db.ref('users/' + uid).update({ score: currentScore + points });
             }
             
+            // сохраняем баллы в личной истории
             db.ref('users/' + uid + '/predictions/' + matchId).update({ points: points });
+
+            // сохраняем баллы и прогноз в публичном разрезе матча (чтобы другие участники видели)
+            // name берём из профиля пользователя
+            db.ref('matches/' + matchId + '/predictions/' + uid).update({
+              points: points
+            });
           }
         });
+      });
+    }
+
+    function awardChampionBonus() {
+      if (!isAdmin) {
+        alert('Только админ может выдавать бонус');
+        return;
+      }
+      const champ = (document.getElementById('actualChampion')?.value || '').trim();
+      if (!champ) {
+        alert('Выберите победителя турнира');
+        return;
+      }
+      if (!confirm(`Выдать +10 очков всем, кто выбрал победителя: ${champ}?`)) return;
+
+      const msgEl = document.getElementById('championAwardMsg');
+      if (msgEl) msgEl.innerHTML = '<div class="loading">Начисляем...</div>';
+
+      // Запишем фактического чемпиона в системные настройки
+      db.ref('settings/actualChampion').set({ team: champ, awardedAt: new Date().toISOString() });
+
+      db.ref('users').once('value', snapshot => {
+        const users = snapshot.val() || {};
+        let awardedCount = 0;
+
+        Object.entries(users).forEach(([uid, u]) => {
+          // выдаём бонус один раз
+          if (u.championPick === champ && !u.championBonusAwarded) {
+            const scoreNow = u.score || 0;
+            db.ref('users/' + uid).update({
+              score: scoreNow + 10,
+              championBonusAwarded: true
+            });
+            awardedCount++;
+          }
+        });
+
+        if (msgEl) msgEl.innerHTML = `<div class="success">✅ Бонус выдан: ${awardedCount} участникам</div>`;
       });
     }
 
