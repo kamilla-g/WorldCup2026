@@ -1334,18 +1334,59 @@
         return;
       }
 
-      db.ref('matches/' + matchId).update({
-        result: { score1: score1, score2: score2 }
-      }).then(() => {
+      // Сначала читаем матч (нужны team1/team2/stage)
+      db.ref('matches/' + matchId).once('value').then(snap => {
+        const match = snap.val();
+        if (!match) throw new Error('Матч не найден');
+
+        return db.ref('matches/' + matchId).update({
+          result: { score1: score1, score2: score2 }
+        }).then(() => match);
+      }).then(match => {
+        // 1) Очки за прогнозы
         calculatePoints(matchId, score1, score2);
-        document.getElementById('resultMessage').innerHTML = '<div class="success">✅ Результат сохранен!</div>';
+
+        // 2) Если это групповой матч — автоматически обновляем таблицу
+        // ожидаем stage вида "Группа A" ... "Группа L"
+        if (typeof match.stage === 'string' && match.stage.startsWith('Группа ')) {
+          const groupLetter = match.stage.replace('Группа ', '').trim();
+          if (groupLetter) {
+            applyGroupResult(groupLetter, match.team1, match.team2, score1, score2);
+          }
+        }
+
+        document.getElementById('resultMessage').innerHTML = '<div class="success">✅ Результат сохранен! (таблица обновится автоматически для групповых матчей)</div>';
         document.getElementById('score1').value = '';
         document.getElementById('score2').value = '';
-        
+
         setTimeout(() => {
           document.getElementById('resultMessage').innerHTML = '';
         }, 3000);
+      }).catch(err => {
+        document.getElementById('resultMessage').innerHTML = '<div class="error">' + err.message + '</div>';
       });
+    }
+
+    function applyGroupResult(groupLetter, team1, team2, score1, score2) {
+      const ref1 = db.ref(`tournament/groups/${groupLetter}/standings/${team1}`);
+      const ref2 = db.ref(`tournament/groups/${groupLetter}/standings/${team2}`);
+
+      // transaction чтобы аккуратно инкрементировать, даже если два админа
+      const upd = (ref, isTeam1) => ref.transaction(cur => {
+        const st = cur || { p: 0, w: 0, d: 0, l: 0, pts: 0 };
+        st.p = (st.p || 0) + 1;
+
+        const my = isTeam1 ? score1 : score2;
+        const opp = isTeam1 ? score2 : score1;
+
+        if (my > opp) { st.w = (st.w || 0) + 1; st.pts = (st.pts || 0) + 3; }
+        else if (my < opp) { st.l = (st.l || 0) + 1; }
+        else { st.d = (st.d || 0) + 1; st.pts = (st.pts || 0) + 1; }
+
+        return st;
+      });
+
+      Promise.all([upd(ref1, true), upd(ref2, false)]).catch(console.error);
     }
 
     function calculatePoints(matchId, score1, score2) {
