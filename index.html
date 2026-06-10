@@ -278,6 +278,7 @@
     <div class="nav-tabs">
       <button class="nav-btn active" onclick="switchTab('leaderboard')">🏆 Таблица</button>
       <button class="nav-btn" onclick="switchTab('matches')">⚽ Матчи</button>
+      <button class="nav-btn" onclick="switchTab('tournament')">🏟️ Турнир</button>
       <button class="nav-btn" onclick="switchTab('profile')">👤 Профиль</button>
       <button class="nav-btn" onclick="switchTab('predictions')">📊 История</button>
       <button class="nav-btn" id="adminBtn" style="display:none" onclick="switchTab('admin')">⚙️ Админ</button>
@@ -311,6 +312,108 @@
       </div>
     </div>
 
+    <!-- Tournament Section -->
+    <div id="tournament" class="section">
+      <div class="leaderboard" style="margin-bottom: 16px;">
+        <div style="display:flex; gap:12px; padding: 16px; align-items:center;">
+          <button class="btn" onclick="showTournamentView('groups')">Группы</button>
+          <button class="btn" onclick="showTournamentView('playoff')">Плей-офф</button>
+          <div style="margin-left:auto; color:#6b7280; font-size: 13px;">Только просмотр для участников</div>
+        </div>
+      </div>
+
+      <div id="tournamentGroups" class="leaderboard">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 140px;">Группа</th>
+              <th>Команда</th>
+              <th>И</th>
+              <th>В</th>
+              <th>Н</th>
+              <th>П</th>
+              <th>О</th>
+            </tr>
+          </thead>
+          <tbody id="groupsBody">
+            <tr><td colspan="7" class="loading">Загрузка таблиц...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="tournamentPlayoff" class="leaderboard" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th>Стадия</th>
+              <th>Матч</th>
+              <th>Победитель</th>
+            </tr>
+          </thead>
+          <tbody id="playoffBody">
+            <tr><td colspan="3" class="loading">Загрузка плей-офф...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="tournamentAdmin" class="admin-section" style="display:none; margin-top: 16px;">
+        <h2 style="margin-bottom: 16px;">Управление турниром (Админ)</h2>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div>
+            <h3 style="margin-bottom: 10px;">Обновить таблицу группы</h3>
+            <div class="form-group">
+              <label>Группа (A–L)</label>
+              <select id="adminGroup">
+                <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                <option value="E">E</option><option value="F">F</option><option value="G">G</option><option value="H">H</option>
+                <option value="I">I</option><option value="J">J</option><option value="K">K</option><option value="L">L</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Команда</label>
+              <input id="adminTeam" placeholder="Например: Мексика">
+            </div>
+            <div style="display:flex; gap: 10px;">
+              <div class="form-group" style="flex:1;"><label>И</label><input id="adminP" type="number" min="0"></div>
+              <div class="form-group" style="flex:1;"><label>В</label><input id="adminW" type="number" min="0"></div>
+              <div class="form-group" style="flex:1;"><label>Н</label><input id="adminD" type="number" min="0"></div>
+              <div class="form-group" style="flex:1;"><label>П</label><input id="adminL" type="number" min="0"></div>
+              <div class="form-group" style="flex:1;"><label>О</label><input id="adminPts" type="number" min="0"></div>
+            </div>
+            <button class="btn" onclick="adminUpsertStanding()">Сохранить строку</button>
+            <div id="adminStandingMsg"></div>
+          </div>
+
+          <div>
+            <h3 style="margin-bottom: 10px;">Обновить плей-офф</h3>
+            <div class="form-group">
+              <label>Стадия</label>
+              <select id="adminStage">
+                <option value="Стыки за плей-офф">Стыки за плей-офф</option>
+                <option value="1/16">1/16 финала</option>
+                <option value="1/8">1/8 финала</option>
+                <option value="1/4">1/4 финала</option>
+                <option value="1/2">1/2 финала</option>
+                <option value="Матч за 3 место">Матч за 3 место</option>
+                <option value="Финал">Финал</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Матч (текст)</label>
+              <input id="adminPlayoffMatch" placeholder="Например: A2 vs B3">
+            </div>
+            <div class="form-group">
+              <label>Победитель</label>
+              <input id="adminPlayoffWinner" placeholder="Например: Мексика">
+            </div>
+            <button class="btn" onclick="adminUpsertPlayoff()">Сохранить</button>
+            <div id="adminPlayoffMsg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Profile Section -->
     <div id="profile" class="section">
       <div class="profile-card">
@@ -324,17 +427,54 @@
           <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
             <select id="championPick" style="flex:1; min-width: 180px; padding: 10px; border: 1px solid #fcd34d; border-radius: 6px;">
               <option value="">Выберите команду...</option>
-              <option value="Аргентина">Аргентина</option>
+              <option value="Мексика">Мексика</option>
+              <option value="ЮАР">ЮАР</option>
+              <option value="Южная Корея">Южная Корея</option>
+              <option value="Чехия">Чехия</option>
+              <option value="Канада">Канада</option>
+              <option value="Швейцария">Швейцария</option>
+              <option value="Катар">Катар</option>
+              <option value="Босния и Герцеговина">Босния и Герцеговина</option>
               <option value="Бразилия">Бразилия</option>
-              <option value="Франция">Франция</option>
-              <option value="Англия">Англия</option>
-              <option value="Испания">Испания</option>
-              <option value="Германия">Германия</option>
-              <option value="Португалия">Португалия</option>
-              <option value="Италия">Италия</option>
-              <option value="Нидерланды">Нидерланды</option>
-              <option value="Бельгия">Бельгия</option>
+              <option value="Марокко">Марокко</option>
+              <option value="Гаити">Гаити</option>
+              <option value="Шотландия">Шотландия</option>
               <option value="США">США</option>
+              <option value="Парагвай">Парагвай</option>
+              <option value="Австралия">Австралия</option>
+              <option value="Турция">Турция</option>
+              <option value="Германия">Германия</option>
+              <option value="Кюрасао">Кюрасао</option>
+              <option value="Кот-д’Ивуар">Кот-д’Ивуар</option>
+              <option value="Эквадор">Эквадор</option>
+              <option value="Нидерланды">Нидерланды</option>
+              <option value="Япония">Япония</option>
+              <option value="Тунис">Тунис</option>
+              <option value="Швеция">Швеция</option>
+              <option value="Бельгия">Бельгия</option>
+              <option value="Египет">Египет</option>
+              <option value="Иран">Иран</option>
+              <option value="Новая Зеландия">Новая Зеландия</option>
+              <option value="Испания">Испания</option>
+              <option value="Кабо-Верде">Кабо-Верде</option>
+              <option value="Саудовская Аравия">Саудовская Аравия</option>
+              <option value="Уругвай">Уругвай</option>
+              <option value="Франция">Франция</option>
+              <option value="Сенегал">Сенегал</option>
+              <option value="Норвегия">Норвегия</option>
+              <option value="Ирак">Ирак</option>
+              <option value="Аргентина">Аргентина</option>
+              <option value="Алжир">Алжир</option>
+              <option value="Австрия">Австрия</option>
+              <option value="Иордания">Иордания</option>
+              <option value="Португалия">Португалия</option>
+              <option value="Колумбия">Колумбия</option>
+              <option value="Узбекистан">Узбекистан</option>
+              <option value="ДР Конго">ДР Конго</option>
+              <option value="Англия">Англия</option>
+              <option value="Хорватия">Хорватия</option>
+              <option value="Гана">Гана</option>
+              <option value="Панама">Панама</option>
             </select>
             <button class="btn" id="championSaveBtn" onclick="saveChampionPick()">Сохранить</button>
           </div>
@@ -425,6 +565,7 @@
               <option value="Группа J">Группа J</option>
               <option value="Группа K">Группа K</option>
               <option value="Группа L">Группа L</option>
+              <option value="Стыки за плей-офф">Стыки за плей-офф</option>
               <option value="1/16">1/16 финала</option>
               <option value="1/8">1/8 финала</option>
               <option value="1/4">1/4 финала</option>
@@ -463,17 +604,54 @@
             <label>Укажите победителя ЧМ-2026 (после финала)</label>
             <select id="actualChampion">
               <option value="">Выберите команду...</option>
-              <option value="Аргентина">Аргентина</option>
+              <option value="Мексика">Мексика</option>
+              <option value="ЮАР">ЮАР</option>
+              <option value="Южная Корея">Южная Корея</option>
+              <option value="Чехия">Чехия</option>
+              <option value="Канада">Канада</option>
+              <option value="Швейцария">Швейцария</option>
+              <option value="Катар">Катар</option>
+              <option value="Босния и Герцеговина">Босния и Герцеговина</option>
               <option value="Бразилия">Бразилия</option>
-              <option value="Франция">Франция</option>
-              <option value="Англия">Англия</option>
-              <option value="Испания">Испания</option>
-              <option value="Германия">Германия</option>
-              <option value="Португалия">Португалия</option>
-              <option value="Италия">Италия</option>
-              <option value="Нидерланды">Нидерланды</option>
-              <option value="Бельгия">Бельгия</option>
+              <option value="Марокко">Марокко</option>
+              <option value="Гаити">Гаити</option>
+              <option value="Шотландия">Шотландия</option>
               <option value="США">США</option>
+              <option value="Парагвай">Парагвай</option>
+              <option value="Австралия">Австралия</option>
+              <option value="Турция">Турция</option>
+              <option value="Германия">Германия</option>
+              <option value="Кюрасао">Кюрасао</option>
+              <option value="Кот-д’Ивуар">Кот-д’Ивуар</option>
+              <option value="Эквадор">Эквадор</option>
+              <option value="Нидерланды">Нидерланды</option>
+              <option value="Япония">Япония</option>
+              <option value="Тунис">Тунис</option>
+              <option value="Швеция">Швеция</option>
+              <option value="Бельгия">Бельгия</option>
+              <option value="Египет">Египет</option>
+              <option value="Иран">Иран</option>
+              <option value="Новая Зеландия">Новая Зеландия</option>
+              <option value="Испания">Испания</option>
+              <option value="Кабо-Верде">Кабо-Верде</option>
+              <option value="Саудовская Аравия">Саудовская Аравия</option>
+              <option value="Уругвай">Уругвай</option>
+              <option value="Франция">Франция</option>
+              <option value="Сенегал">Сенегал</option>
+              <option value="Норвегия">Норвегия</option>
+              <option value="Ирак">Ирак</option>
+              <option value="Аргентина">Аргентина</option>
+              <option value="Алжир">Алжир</option>
+              <option value="Австрия">Австрия</option>
+              <option value="Иордания">Иордания</option>
+              <option value="Португалия">Португалия</option>
+              <option value="Колумбия">Колумбия</option>
+              <option value="Узбекистан">Узбекистан</option>
+              <option value="ДР Конго">ДР Конго</option>
+              <option value="Англия">Англия</option>
+              <option value="Хорватия">Хорватия</option>
+              <option value="Гана">Гана</option>
+              <option value="Панама">Панама</option>
             </select>
           </div>
           <button class="btn" onclick="awardChampionBonus()">Выдать +10 угадавшим</button>
@@ -542,6 +720,119 @@
         });
     }
 
+    // --- Турнир: группы и плей-офф (просмотр для всех, редактирование для админа) ---
+    function showTournamentView(view) {
+      const g = document.getElementById('tournamentGroups');
+      const p = document.getElementById('tournamentPlayoff');
+      if (!g || !p) return;
+      if (view === 'playoff') { g.style.display = 'none'; p.style.display = 'block'; }
+      else { p.style.display = 'none'; g.style.display = 'block'; }
+    }
+
+    function loadTournament() {
+      // Показать админский блок
+      const adminBlock = document.getElementById('tournamentAdmin');
+      if (adminBlock) adminBlock.style.display = isAdmin ? 'block' : 'none';
+
+      // Группы
+      db.ref('tournament/groups').on('value', snap => {
+        const groups = snap.val() || {};
+        const rows = [];
+        const letters = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+        letters.forEach(letter => {
+          const standings = (groups[letter] && groups[letter].standings) ? groups[letter].standings : {};
+          const list = Object.entries(standings).map(([team, st]) => ({ team, ...st }));
+          list.sort((a,b) => (b.pts||0) - (a.pts||0));
+
+          if (list.length === 0) {
+            rows.push(`<tr><td><b>Группа ${letter}</b></td><td colspan="6" style="color:#6b7280;">Пока нет данных</td></tr>`);
+          } else {
+            list.forEach((t, idx) => {
+              rows.push(`
+                <tr>
+                  <td>${idx===0 ? `<b>Группа ${letter}</b>` : ''}</td>
+                  <td style="font-weight:600;">${t.team}</td>
+                  <td>${t.p||0}</td>
+                  <td>${t.w||0}</td>
+                  <td>${t.d||0}</td>
+                  <td>${t.l||0}</td>
+                  <td style="font-weight:700; color:#667eea;">${t.pts||0}</td>
+                </tr>
+              `);
+            });
+          }
+        });
+
+        const body = document.getElementById('groupsBody');
+        if (body) body.innerHTML = rows.join('');
+      });
+
+      // Плей-офф (включая стыки)
+      db.ref('tournament/playoff').on('value', snap => {
+        const data = snap.val() || {};
+        const items = Object.values(data);
+        const order = {
+          'Стыки за плей-офф': 1,
+          '1/16': 2,
+          '1/8': 3,
+          '1/4': 4,
+          '1/2': 5,
+          'Матч за 3 место': 6,
+          'Финал': 7
+        };
+        items.sort((a,b) => (order[a.stage]||99) - (order[b.stage]||99));
+
+        const rows = items.map(it => `
+          <tr>
+            <td>${it.stage || ''}</td>
+            <td>${it.match || ''}</td>
+            <td style="font-weight:700; color:#667eea;">${it.winner || ''}</td>
+          </tr>
+        `).join('');
+
+        const body = document.getElementById('playoffBody');
+        if (body) body.innerHTML = rows || '<tr><td colspan="3" style="text-align:center; padding:20px; color:#6b7280;">Пока нет данных</td></tr>';
+      });
+    }
+
+    function adminUpsertStanding() {
+      if (!isAdmin) return;
+      const group = (document.getElementById('adminGroup')?.value || '').trim();
+      const team = (document.getElementById('adminTeam')?.value || '').trim();
+      const p = parseInt(document.getElementById('adminP')?.value); 
+      const w = parseInt(document.getElementById('adminW')?.value);
+      const d = parseInt(document.getElementById('adminD')?.value);
+      const l = parseInt(document.getElementById('adminL')?.value);
+      const pts = parseInt(document.getElementById('adminPts')?.value);
+      const msg = document.getElementById('adminStandingMsg');
+
+      if (!group || !team || [p,w,d,l,pts].some(x => Number.isNaN(x))) {
+        if (msg) msg.innerHTML = '<div class="error">Заполните группу, команду и все числа</div>';
+        return;
+      }
+
+      db.ref(`tournament/groups/${group}/standings/${team}`).set({ p, w, d, l, pts })
+        .then(() => { if (msg) msg.innerHTML = '<div class="success">✅ Сохранено</div>'; })
+        .catch(err => { if (msg) msg.innerHTML = '<div class="error">' + err.message + '</div>'; });
+    }
+
+    function adminUpsertPlayoff() {
+      if (!isAdmin) return;
+      const stage = (document.getElementById('adminStage')?.value || '').trim();
+      const match = (document.getElementById('adminPlayoffMatch')?.value || '').trim();
+      const winner = (document.getElementById('adminPlayoffWinner')?.value || '').trim();
+      const msg = document.getElementById('adminPlayoffMsg');
+      if (!stage || !match) {
+        if (msg) msg.innerHTML = '<div class="error">Заполните стадию и матч</div>';
+        return;
+      }
+      const id = ('p_' + stage + '_' + match).replace(/[^a-zA-Z0-9_\-а-яА-Я]/g, '_');
+      db.ref('tournament/playoff/' + id).set({ stage, match, winner: winner || '' })
+        .then(() => { if (msg) msg.innerHTML = '<div class="success">✅ Сохранено</div>'; })
+        .catch(err => { if (msg) msg.innerHTML = '<div class="error">' + err.message + '</div>'; });
+    }
+
     auth.onAuthStateChanged(user => {
       if (user) {
         currentUser = user;
@@ -550,6 +841,7 @@
         checkAdminStatus();
         loadLeaderboard();
         loadMatches();
+        loadTournament();
         loadProfile();
         loadPredictions();
       } else {
@@ -589,7 +881,7 @@
           </div>
 
           <div id="registerNameBlock" style="margin-bottom: 16px; display:none;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя</label>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя и Фамилия</label>
             <input type="text" id="nameInput" placeholder="Например: Камилла Григорян" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
           </div>
 
