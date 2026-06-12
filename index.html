@@ -1076,11 +1076,13 @@
         // Подтягиваем мои прогнозы, чтобы корректно показывать мои значения в карточке матча
         db.ref('users/' + currentUser.uid + '/predictions').once('value').then(predSnap => {
           const myPreds = predSnap.val() || {};
-          const matchList = Object.entries(matches).map(([id, match]) => ({
-            id,
-            ...match,
-            myPrediction: myPreds[id] || null
-          }));
+          const matchList = Object.entries(matches)
+            .map(([id, match]) => ({
+              id,
+              ...match,
+              myPrediction: myPreds[id] || null
+            }))
+            .sort((a, b) => new Date(a.dateTime || 0).getTime() - new Date(b.dateTime || 0).getTime());
 
           const html = matchList.map(match => {  
           const now = new Date();
@@ -1344,8 +1346,7 @@
             return da - dbb;
           })
           .map(([id, match]) => {
-            const dt = match.dateTime ? new Date(match.dateTime).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '';
-            return `<option value="${id}">${dt} — ${match.team1} vs ${match.team2}</option>`;
+            return `<option value="${id}">${match.team1} vs ${match.team2}</option>`;
           })
           .join('');
         
