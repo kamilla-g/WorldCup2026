@@ -711,6 +711,77 @@
       return new Date() <= CHAMPION_PICK_DEADLINE;
     }
 
+    // Флаги команд (для списка команд, рейтинга и матчей)
+    const TEAM_FLAGS = {
+      'Мексика': '🇲🇽',
+      'ЮАР': '🇿🇦',
+      'Южная Корея': '🇰🇷',
+      'Чехия': '🇨🇿',
+      'Канада': '🇨🇦',
+      'Швейцария': '🇨🇭',
+      'Катар': '🇶🇦',
+      'Босния и Герцеговина': '🇧🇦',
+      'Бразилия': '🇧🇷',
+      'Марокко': '🇲🇦',
+      'Гаити': '🇭🇹',
+      'Шотландия': '🏴',
+      'США': '🇺🇸',
+      'Парагвай': '🇵🇾',
+      'Австралия': '🇦🇺',
+      'Турция': '🇹🇷',
+      'Германия': '🇩🇪',
+      'Кюрасао': '🇨🇼',
+      'Кот-д’Ивуар': '🇨🇮',
+      'Эквадор': '🇪🇨',
+      'Нидерланды': '🇳🇱',
+      'Япония': '🇯🇵',
+      'Тунис': '🇹🇳',
+      'Швеция': '🇸🇪',
+      'Бельгия': '🇧🇪',
+      'Египет': '🇪🇬',
+      'Иран': '🇮🇷',
+      'Новая Зеландия': '🇳🇿',
+      'Испания': '🇪🇸',
+      'Кабо-Верде': '🇨🇻',
+      'Саудовская Аравия': '🇸🇦',
+      'Уругвай': '🇺🇾',
+      'Франция': '🇫🇷',
+      'Сенегал': '🇸🇳',
+      'Норвегия': '🇳🇴',
+      'Ирак': '🇮🇶',
+      'Аргентина': '🇦🇷',
+      'Алжир': '🇩🇿',
+      'Австрия': '🇦🇹',
+      'Иордания': '🇯🇴',
+      'Португалия': '🇵🇹',
+      'Колумбия': '🇨🇴',
+      'Узбекистан': '🇺🇿',
+      'ДР Конго': '🇨🇩',
+      'Англия': '🏴',
+      'Хорватия': '🇭🇷',
+      'Гана': '🇬🇭',
+      'Панама': '🇵🇦'
+    };
+
+    function flagOf(team) {
+      return TEAM_FLAGS[team] || '';
+    }
+
+    function enhanceSelectWithFlags(selectId) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      Array.from(sel.options).forEach(opt => {
+        const val = (opt.value || '').trim();
+        if (!val) return;
+        const flag = flagOf(val);
+        if (!flag) return;
+        // не дублируем
+        if (!opt.textContent.trim().startsWith(flag)) {
+          opt.textContent = `${flag} ${val}`;
+        }
+      });
+    }
+
     // (Функция getInitials больше не используется в шапке, но оставляем без вреда)
     function getInitials(fullName) {
       const s = (fullName || '').trim().replace(/\s+/g, ' ');
@@ -1009,6 +1080,7 @@
 
         // Сразу заполняем выпадающий список матчей для результатов
         loadAdminMatchSelect();
+        enhanceSelectWithFlags('actualChampion');
 
         // И показываем админ-блок управления турниром
         const tournamentAdmin = document.getElementById('tournamentAdmin');
@@ -1042,6 +1114,7 @@
 
           leaderboard.push({
             name: userData.name,
+            championPick: userData.championPick || '',
             score: totalScore,
             matches: matchCount,
             guessed: guessed,
@@ -1056,7 +1129,7 @@
           return `
             <tr>
               <td><span class="rank">${idx + 1}</span> ${medal}</td>
-              <td>${user.name}</td>
+              <td>${user.name} ${user.championPick ? `<span title="Победитель: ${user.championPick}" style="margin-left:6px;">${flagOf(user.championPick)}</span>` : ''}</td>
               <td style="font-weight: 600; color: #667eea; font-size: 16px;">${user.score}</td>
               <td>${user.matches}</td>
               <td>${user.guessed}</td>
@@ -1082,7 +1155,15 @@
               ...match,
               myPrediction: myPreds[id] || null
             }))
-            .sort((a, b) => new Date(a.dateTime || 0).getTime() - new Date(b.dateTime || 0).getTime());
+            .sort((a, b) => {
+              const ta = new Date(a.dateTime || 0).getTime();
+              const tb = new Date(b.dateTime || 0).getTime();
+              const now = Date.now();
+              const aPast = ta < now;
+              const bPast = tb < now;
+              if (aPast !== bPast) return aPast ? 1 : -1; // прошедшие вниз
+              return ta - tb; // внутри группы сортировка по времени
+            });
 
           const html = matchList.map(match => {  
           const now = new Date();
@@ -1136,7 +1217,7 @@
                 <div class="match-time">${new Date(match.dateTime).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</div>
               </div>
               <div class="teams">
-                ${match.team1} <span class="vs">vs</span> ${match.team2}
+                ${flagOf(match.team1)} ${match.team1} <span class="vs">vs</span> ${flagOf(match.team2)} ${match.team2}
               </div>
               ${resultHtml}
               ${predictionHtml}
@@ -1220,6 +1301,7 @@
           const msgEl = document.getElementById('championPickMsg');
 
           if (pickEl) {
+            enhanceSelectWithFlags('championPick');
             if (userData.championPick) pickEl.value = userData.championPick;
 
             if (!isChampionPickOpen()) {
