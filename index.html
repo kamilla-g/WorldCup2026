@@ -606,12 +606,22 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Голы Команда 1</label>
+            <label>Голы Команда 1 (итог после 120 минут)</label>
             <input type="number" id="score1" min="0" placeholder="0">
           </div>
           <div class="form-group">
-            <label>Голы Команда 2</label>
+            <label>Голы Команда 2 (итог после 120 минут)</label>
             <input type="number" id="score2" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Победитель матча (кто прошёл дальше)</label>
+            <select id="winnerTeam">
+              <option value="">Выберите матч выше</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+            <input type="checkbox" id="wentToPens">
+            <label for="wentToPens" style="margin:0;">Решилось по пенальти</label>
           </div>
           <button class="btn" onclick="setResult()">Сохранить результат</button>
           <div id="resultMessage"></div>
@@ -971,7 +981,7 @@
           </div>
 
           <div id="registerNameBlock" style="margin-bottom: 16px; display:none;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя и Фамилия</label>
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Имя (для таблицы)</label>
             <input type="text" id="nameInput" placeholder="Например: Камилла Григорян" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px;">
           </div>
 
@@ -1182,6 +1192,18 @@
 
           let predictionHtml = '';
           if (!isPast && currentUser) {
+            const isGroup = (typeof match.stage === 'string' && match.stage.startsWith('Группа '));
+            const winnerPickUi = !isGroup ? `
+              <div style="margin-top: 10px;">
+                <div style="font-size: 12px; font-weight: 600; color:#374151; margin-bottom: 6px;">Кто пройдет дальше (если будут пенальти — учитываем их)</div>
+                <select id="winnerPick_${match.id}" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
+                  <option value="">Выберите...</option>
+                  <option value="${match.team1}" ${match.myPrediction?.winnerPick === match.team1 ? 'selected' : ''}>${flagOf(match.team1)} ${match.team1}</option>
+                  <option value="${match.team2}" ${match.myPrediction?.winnerPick === match.team2 ? 'selected' : ''}>${flagOf(match.team2)} ${match.team2}</option>
+                </select>
+              </div>
+            ` : '';
+
             predictionHtml = `
               <div class="prediction-form">
                 <input type="number" id="pred1_${match.id}" min="0" placeholder="0" value="${match.myPrediction?.score1 || ''}">
@@ -1189,6 +1211,7 @@
                 <input type="number" id="pred2_${match.id}" min="0" placeholder="0" value="${match.myPrediction?.score2 || ''}">
                 <button class="btn" onclick="savePrediction('${match.id}', '${match.team1}', '${match.team2}')">Сохранить</button>
               </div>
+              ${winnerPickUi}
               ${isDeadlineClose ? '<div class="deadline-warning">⚠️ Осталось менее 15 минут!</div>' : ''}
             `;
           }
@@ -1243,6 +1266,7 @@
     function savePrediction(matchId, team1, team2) {
       const score1 = parseInt(document.getElementById(`pred1_${matchId}`).value) || 0;
       const score2 = parseInt(document.getElementById(`pred2_${matchId}`).value) || 0;
+      const winnerPick = (document.getElementById(`winnerPick_${matchId}`)?.value || '').trim();
 
       // 1) личная запись
       const personalPred = {
@@ -1250,6 +1274,7 @@
         score2: score2,
         team1: team1,
         team2: team2,
+        winnerPick: winnerPick || null,
         timestamp: new Date().toISOString()
       };
 
@@ -1262,6 +1287,7 @@
           name: name,
           score1: score1,
           score2: score2,
+          winnerPick: winnerPick || null,
           timestamp: personalPred.timestamp
         };
 
@@ -1432,7 +1458,29 @@
           })
           .join('');
         
-        document.getElementById('matchSelect').innerHTML = '<option value="">Выберите матч</option>' + options;
+        const sel = document.getElementById('matchSelect');
+        sel.innerHTML = '<option value="">Выберите матч</option>' + options;
+
+        // Подставляем команды в выбор победителя
+        sel.onchange = () => {
+          const id = sel.value;
+          const wSel = document.getElementById('winnerTeam');
+          if (!wSel) return;
+          if (!id) {
+            wSel.innerHTML = '<option value="">Выберите матч выше</option>';
+            return;
+          }
+          const m = matches[id];
+          if (!m) {
+            wSel.innerHTML = '<option value="">Матч не найден</option>';
+            return;
+          }
+          wSel.innerHTML = `
+            <option value="">Выберите победителя...</option>
+            <option value="${m.team1}">${flagOf(m.team1)} ${m.team1}</option>
+            <option value="${m.team2}">${flagOf(m.team2)} ${m.team2}</option>
+          `;
+        };
       });
     }
 
@@ -1445,6 +1493,8 @@
       const matchId = document.getElementById('matchSelect').value;
       const score1 = parseInt(document.getElementById('score1').value);
       const score2 = parseInt(document.getElementById('score2').value);
+      const winner = (document.getElementById('winnerTeam')?.value || '').trim();
+      const wentToPens = !!document.getElementById('wentToPens')?.checked;
 
       if (!matchId || isNaN(score1) || isNaN(score2)) {
         document.getElementById('resultMessage').innerHTML = '<div class="error">Выберите матч и введите голы</div>';
@@ -1456,15 +1506,23 @@
         const match = snap.val();
         if (!match) throw new Error('Матч не найден');
 
+        const isGroup = (typeof match.stage === 'string' && match.stage.startsWith('Группа '));
+
+        // Для плей-офф (включая стыки) требуем указать победителя (кто проходит дальше)
+        if (!isGroup && !winner) {
+          throw new Error('Для плей-офф укажите победителя (кто прошёл дальше)');
+        }
+
         return db.ref('matches/' + matchId).update({
-          result: { score1: score1, score2: score2 }
+          result: { score1: score1, score2: score2 },
+          winner: winner || null,
+          wentToPens: wentToPens
         }).then(() => match);
       }).then(match => {
         // 1) Очки за прогнозы
         calculatePoints(matchId, score1, score2);
 
         // 2) Если это групповой матч — автоматически обновляем таблицу
-        // ожидаем stage вида "Группа A" ... "Группа L"
         if (typeof match.stage === 'string' && match.stage.startsWith('Группа ')) {
           const groupLetter = match.stage.replace('Группа ', '').trim();
           if (groupLetter) {
@@ -1472,9 +1530,13 @@
           }
         }
 
-        document.getElementById('resultMessage').innerHTML = '<div class="success">✅ Результат сохранен! (таблица обновится автоматически для групповых матчей)</div>';
+        document.getElementById('resultMessage').innerHTML = '<div class="success">✅ Результат сохранен!</div>';
         document.getElementById('score1').value = '';
         document.getElementById('score2').value = '';
+        const wSel = document.getElementById('winnerTeam');
+        if (wSel) wSel.value = '';
+        const pens = document.getElementById('wentToPens');
+        if (pens) pens.checked = false;
 
         setTimeout(() => {
           document.getElementById('resultMessage').innerHTML = '';
@@ -1507,16 +1569,24 @@
     }
 
     function calculatePoints(matchId, score1, score2) {
-      db.ref('users').once('value', snapshot => {
-        const users = snapshot.val() || {};
-        
-        Object.entries(users).forEach(([uid, userData]) => {
-          const predictions = userData.predictions || {};
-          const pred = predictions[matchId];
-          
-          if (pred) {
+      // Для варианта A: score1/score2 — итоговый счет по итогам 120 минут.
+      // Если матч решился по пенальти — даем бонус +1 за угаданного победителя матча (кто прошел дальше).
+      db.ref('matches/' + matchId).once('value').then(msnap => {
+        const match = msnap.val() || {};
+        const wentToPens = !!match.wentToPens;
+        const winner = (match.winner || '').toString();
+
+        return db.ref('users').once('value').then(snapshot => {
+          const users = snapshot.val() || {};
+
+          Object.entries(users).forEach(([uid, userData]) => {
+            const predictions = userData.predictions || {};
+            const pred = predictions[matchId];
+            if (!pred) return;
+
             let points = 0;
-            
+
+            // базовые очки (по счету после 120 минут)
             if (pred.score1 === score1 && pred.score2 === score2) {
               points = 3;
             } else if (
@@ -1526,23 +1596,25 @@
             ) {
               points = 1;
             }
-            
+
+            // бонус за пенальти: +1 за угаданного победителя (кто прошел дальше)
+            if (wentToPens && winner) {
+              const wp = (pred.winnerPick || '').toString();
+              if (wp && wp === winner) points += 1;
+            }
+
+            // начисляем очки в общий счет (всегда инкремент на рассчитанные очки)
             if (points > 0) {
               const currentScore = userData.score || 0;
               db.ref('users/' + uid).update({ score: currentScore + points });
             }
-            
-            // сохраняем баллы в личной истории
-            db.ref('users/' + uid + '/predictions/' + matchId).update({ points: points });
 
-            // сохраняем баллы и прогноз в публичном разрезе матча (чтобы другие участники видели)
-            // name берём из профиля пользователя
-            db.ref('matches/' + matchId + '/predictions/' + uid).update({
-              points: points
-            });
-          }
+            // сохраняем очки в прогноз
+            db.ref('users/' + uid + '/predictions/' + matchId).update({ points: points });
+            db.ref('matches/' + matchId + '/predictions/' + uid).update({ points: points });
+          });
         });
-      });
+      }).catch(console.error);
     }
 
     function awardChampionBonus() {
